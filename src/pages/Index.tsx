@@ -2,7 +2,8 @@ import { useChordBook } from '@/hooks/useChordBook';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SongViewer } from '@/components/SongViewer';
 import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Music2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const Index = () => {
   const book = useChordBook();
@@ -12,7 +13,7 @@ const Index = () => {
     <div className="flex h-screen w-full overflow-hidden">
       {/* Mobile toggle */}
       <button
-        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded bg-sidebar border border-sidebar-border text-sidebar-foreground"
+        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded-lg bg-sidebar border border-sidebar-border text-sidebar-foreground shadow-md"
         onClick={() => setSidebarOpen(s => !s)}
       >
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -45,7 +46,7 @@ const Index = () => {
       {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-foreground/20 z-30 md:hidden"
+          className="fixed inset-0 bg-foreground/20 backdrop-blur-sm z-30 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -61,19 +62,22 @@ const Index = () => {
         ) : (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md px-6">
-              <h2 className="text-2xl font-bold text-foreground mb-2" style={{ fontFamily: "'Source Code Pro', monospace" }}>
+              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                <Music2 className="h-10 w-10 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: "'Source Code Pro', monospace" }}>
                 Chord Book
               </h2>
-              <p className="text-muted-foreground text-sm mb-6">
-                Your digital music stand. Create a folder, add songs, and start playing.
+              <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
+                Your digital music stand. Create a folder, add songs, and paste your chords &amp; lyrics to start playing.
               </p>
               {book.folders.length === 0 && (
-                <button
+                <Button
                   onClick={() => book.createFolder('My Songs')}
-                  className="text-sm font-medium text-primary hover:underline"
+                  className="rounded-full px-6"
                 >
                   + Create your first folder
-                </button>
+                </Button>
               )}
             </div>
           </div>
