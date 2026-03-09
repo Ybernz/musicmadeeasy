@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronRight, MoreHorizontal, Music, Sun, Moon } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Music, Sun, Moon, LogOut } from 'lucide-react';
 import { Folder, Song } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -28,6 +28,7 @@ interface SidebarProps {
   onMoveSong: (songId: string, targetFolderId: string) => void;
   onSelectSong: (id: string | null) => void;
   onToggleFolder: (id: string) => void;
+  onSignOut: () => void;
 }
 
 function InlineRename({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
@@ -180,7 +181,7 @@ export function AppSidebar(props: SidebarProps) {
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border">
+      <div className="p-3 border-t border-sidebar-border flex items-center justify-between">
         {creatingFolder ? (
           <InlineRename
             value=""
@@ -195,6 +196,13 @@ export function AppSidebar(props: SidebarProps) {
             + New Folder
           </button>
         )}
+        <button
+          onClick={props.onSignOut}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-sidebar-accent transition-colors"
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
     </aside>
   );

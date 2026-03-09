@@ -1,3 +1,5 @@
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { useChordBook } from '@/hooks/useChordBook';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SongViewer } from '@/components/SongViewer';
@@ -6,8 +8,12 @@ import { Menu, X, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
+  const { user, loading: authLoading, signOut } = useAuth();
   const book = useChordBook();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  if (authLoading) return <div className="flex items-center justify-center h-screen bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  if (!user) return <Navigate to="/auth" replace />;
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -40,6 +46,7 @@ const Index = () => {
           onMoveSong={book.moveSong}
           onSelectSong={(id) => { book.selectSong(id); setSidebarOpen(false); }}
           onToggleFolder={book.toggleFolder}
+          onSignOut={signOut}
         />
       </div>
 
@@ -53,7 +60,11 @@ const Index = () => {
 
       {/* Main content */}
       <main className="flex-1 h-full overflow-hidden bg-background">
-        {book.selectedSong ? (
+        {book.loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : book.selectedSong ? (
           <SongViewer
             song={book.selectedSong}
             onUpdateContent={book.updateSongContent}
