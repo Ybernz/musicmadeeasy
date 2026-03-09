@@ -1,118 +1,110 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AppState, Folder, Song } from '@/lib/types';
-
-const STORAGE_KEY = 'chord-book-data';
-
-const defaultState: AppState = {
-  folders: [],
-  songs: [],
-  selectedSongId: null,
-  expandedFolderIds: [],
-};
-
-function loadState(): AppState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultState, ...JSON.parse(raw) };
-  } catch {}
-  return defaultState;
-}
-
-function saveState(state: AppState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function genId() {
-  return crypto.randomUUID();
-}
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Folder, Song } from '@/lib/types';
 
 export function useChordBook() {
-  const [state, setState] = useState<AppState>(loadState);
+  const { user } = useAuth();
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch all data on mount / user change
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    if (!user) { setFolders([]); setSongs([]); setLoading(false); return; }
 
-  const createFolder = useCallback((name: string) => {
-    const folder: Folder = { id: genId(), name, createdAt: Date.now() };
-    setState(s => ({ ...s, folders: [...s.folders, folder] }));
-    return folder;
+    const fetchData = async () => {
+      setLoading(true);
+      const [foldersRes, songsRes] = await Promise.all([
+        supabase.from('folders').select('*').order('created_at'),
+        supabase.from('songs').select('*').order('created_at'),
+      ]);
+
+      if (foldersRes.data) setFolders(foldersRes.data.map(f => ({ id: f.id, name: f.name, createdAt: new Date(f.created_at).getTime() })));
+      if (songsRes.data) setSongs(songsRes.data.map(s => ({ id: s.id, title: s.title, content: s.content, folderId: s.folder_id, createdAt: new Date(s.created_at).getTime() })));
+      setLoading(false);
+    };
+    fetchData();
+  }, [user]);
+
+  const createFolder = useCallback(async (name: string) => {
+    if (!user) return;
+    const { data } = await supabase.from('folders').insert({ name, user_id: user.id }).select().single();
+    if (data) {
+      const folder: Folder = { id: data.id, name: data.name, createdAt: new Date(data.created_at).getTime() };
+      setFolders(f => [...f, folder]);
+      return folder;
+    }
+  }, [user]);
+
+  const renameFolder = useCallback(async (id: string, name: string) => {
+    await supabase.from('folders').update({ name }).eq('id', id);
+    setFolders(f => f.map(folder => folder.id === id ? { ...folder, name } : folder));
   }, []);
 
-  const renameFolder = useCallback((id: string, name: string) => {
-    setState(s => ({
-      ...s,
-      folders: s.folders.map(f => f.id === id ? { ...f, name } : f),
-    }));
+  const deleteFolder = useCallback(async (id: string) => {
+    await supabase.from('songs').delete().eq('folder_id', id);
+    await supabase.from('folders').delete().eq('id', id);
+    setFolders(f => f.filter(folder => folder.id !== id));
+    setSongs(s => s.filter(song => song.folderId !== id));
+    setSelectedSongId(prev => {
+      const song = songs.find(s => s.id === prev);
+      return song?.folderId === id ? null : prev;
+    });
+  }, [songs]);
+
+  const createSong = useCallback(async (folderId: string) => {
+    if (!user) return;
+    const { data } = await supabase.from('songs').insert({ folder_id: folderId, user_id: user.id, title: 'Untitled Song', content: '' }).select().single();
+    if (data) {
+      const song: Song = { id: data.id, title: data.title, content: data.content, folderId: data.folder_id, createdAt: new Date(data.created_at).getTime() };
+      setSongs(s => [...s, song]);
+      setSelectedSongId(song.id);
+      setExpandedFolderIds(ids => ids.includes(folderId) ? ids : [...ids, folderId]);
+      return song;
+    }
+  }, [user]);
+
+  const renameSong = useCallback(async (id: string, title: string) => {
+    await supabase.from('songs').update({ title }).eq('id', id);
+    setSongs(s => s.map(song => song.id === id ? { ...song, title } : song));
   }, []);
 
-  const deleteFolder = useCallback((id: string) => {
-    setState(s => ({
-      ...s,
-      folders: s.folders.filter(f => f.id !== id),
-      songs: s.songs.filter(s2 => s2.folderId !== id),
-      selectedSongId: s.songs.find(s2 => s2.id === s.selectedSongId)?.folderId === id ? null : s.selectedSongId,
-    }));
+  const updateSongContent = useCallback(async (id: string, content: string) => {
+    await supabase.from('songs').update({ content }).eq('id', id);
+    setSongs(s => s.map(song => song.id === id ? { ...song, content } : song));
   }, []);
 
-  const createSong = useCallback((folderId: string) => {
-    const song: Song = { id: genId(), title: 'Untitled Song', content: '', folderId, createdAt: Date.now() };
-    setState(s => ({
-      ...s,
-      songs: [...s.songs, song],
-      selectedSongId: song.id,
-      expandedFolderIds: s.expandedFolderIds.includes(folderId) ? s.expandedFolderIds : [...s.expandedFolderIds, folderId],
-    }));
-    return song;
+  const deleteSong = useCallback(async (id: string) => {
+    await supabase.from('songs').delete().eq('id', id);
+    setSongs(s => s.filter(song => song.id !== id));
+    setSelectedSongId(prev => prev === id ? null : prev);
   }, []);
 
-  const renameSong = useCallback((id: string, title: string) => {
-    setState(s => ({
-      ...s,
-      songs: s.songs.map(song => song.id === id ? { ...song, title } : song),
-    }));
-  }, []);
-
-  const updateSongContent = useCallback((id: string, content: string) => {
-    setState(s => ({
-      ...s,
-      songs: s.songs.map(song => song.id === id ? { ...song, content } : song),
-    }));
-  }, []);
-
-  const deleteSong = useCallback((id: string) => {
-    setState(s => ({
-      ...s,
-      songs: s.songs.filter(song => song.id !== id),
-      selectedSongId: s.selectedSongId === id ? null : s.selectedSongId,
-    }));
-  }, []);
-
-  const moveSong = useCallback((songId: string, targetFolderId: string) => {
-    setState(s => ({
-      ...s,
-      songs: s.songs.map(song => song.id === songId ? { ...song, folderId: targetFolderId } : song),
-    }));
+  const moveSong = useCallback(async (songId: string, targetFolderId: string) => {
+    await supabase.from('songs').update({ folder_id: targetFolderId }).eq('id', songId);
+    setSongs(s => s.map(song => song.id === songId ? { ...song, folderId: targetFolderId } : song));
   }, []);
 
   const selectSong = useCallback((id: string | null) => {
-    setState(s => ({ ...s, selectedSongId: id }));
+    setSelectedSongId(id);
   }, []);
 
   const toggleFolder = useCallback((id: string) => {
-    setState(s => ({
-      ...s,
-      expandedFolderIds: s.expandedFolderIds.includes(id)
-        ? s.expandedFolderIds.filter(fid => fid !== id)
-        : [...s.expandedFolderIds, id],
-    }));
+    setExpandedFolderIds(ids => ids.includes(id) ? ids.filter(fid => fid !== id) : [...ids, id]);
   }, []);
 
-  const selectedSong = state.songs.find(s => s.id === state.selectedSongId) || null;
+  const selectedSong = songs.find(s => s.id === selectedSongId) || null;
 
   return {
-    ...state,
+    folders,
+    songs,
+    selectedSongId,
+    expandedFolderIds,
     selectedSong,
+    loading,
     createFolder,
     renameFolder,
     deleteFolder,

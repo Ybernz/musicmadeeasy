@@ -3,7 +3,7 @@ import { Song } from '@/lib/types';
 import { isChordLine } from '@/lib/chords';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
-import { ChevronDown, Pencil, Save } from 'lucide-react';
+import { ChevronDown, Pencil, Save, Maximize, Minimize, Columns } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SongViewerProps {
@@ -22,6 +22,9 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
   const animRef = useRef<number | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleText, setTitleText] = useState(song.title);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [columnCount, setColumnCount] = useState(2);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { speedRef.current = scrollSpeed; }, [scrollSpeed]);
 
@@ -52,6 +55,25 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [scrolling]);
 
+  // Fullscreen change listener
+  useEffect(() => {
+    const handler = () => {
+      if (!document.fullscreenElement) setIsFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!isFullscreen) {
+      await fullscreenRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      await document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  }, [isFullscreen]);
+
   const saveContent = useCallback(() => {
     onUpdateContent(song.id, editText);
     setEditing(false);
@@ -59,11 +81,35 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
 
   const lines = song.content.split('\n');
 
+  const renderedContent = (
+    <pre
+      className={cn(
+        "whitespace-pre-wrap text-sm leading-7",
+        isFullscreen && "column-gap-8"
+      )}
+      style={{
+        fontFamily: "'Source Code Pro', monospace",
+        columnCount: isFullscreen ? columnCount : undefined,
+        columnRule: isFullscreen ? '1px solid hsl(var(--border))' : undefined,
+      }}
+    >
+      {lines.map((line, i) => (
+        <span
+          key={i}
+          className={isChordLine(line) ? 'text-primary font-bold' : 'text-foreground/70'}
+        >
+          {line}
+          {i < lines.length - 1 && '\n'}
+        </span>
+      ))}
+    </pre>
+  );
+
   return (
-    <div className="flex flex-col h-full relative">
+    <div ref={fullscreenRef} className={cn("flex flex-col h-full relative", isFullscreen && "bg-background")}>
       {/* Title bar */}
       <div className="px-8 py-4 border-b border-border bg-card/50 backdrop-blur-sm flex items-center gap-3">
-        {editingTitle ? (
+        {editingTitle && !isFullscreen ? (
           <input
             autoFocus
             className="text-xl font-bold bg-transparent border-b-2 border-primary outline-none font-mono text-foreground"
@@ -78,14 +124,31 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
         ) : (
           <h2
             className="text-xl font-bold text-foreground cursor-pointer hover:text-primary transition-colors"
-            onClick={() => setEditingTitle(true)}
+            onClick={() => !isFullscreen && setEditingTitle(true)}
           >
             {song.title}
           </h2>
         )}
 
-        <div className="ml-auto flex gap-2">
-          {editing ? (
+        <div className="ml-auto flex gap-2 items-center">
+          {/* Column slider in fullscreen */}
+          {isFullscreen && (
+            <div className="flex items-center gap-2 mr-2">
+              <Columns className="h-4 w-4 text-muted-foreground" />
+              <div className="w-24">
+                <Slider
+                  min={1}
+                  max={4}
+                  step={1}
+                  value={[columnCount]}
+                  onValueChange={([v]) => setColumnCount(v)}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground w-4">{columnCount}</span>
+            </div>
+          )}
+
+          {!isFullscreen && (editing ? (
             <Button size="sm" onClick={saveContent} className="rounded-full gap-1.5 h-8 px-4">
               <Save className="h-3.5 w-3.5" />
               Save
@@ -95,13 +158,20 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
               <Pencil className="h-3.5 w-3.5" />
               Edit
             </Button>
+          ))}
+
+          {song.content && (
+            <Button size="sm" variant="outline" onClick={toggleFullscreen} className="rounded-full gap-1.5 h-8 px-4">
+              {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+              {isFullscreen ? 'Exit' : 'Fullscreen'}
+            </Button>
           )}
         </div>
       </div>
 
       {/* Content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6 scroll-smooth">
-        {editing ? (
+      <div ref={scrollRef} className={cn("flex-1 overflow-y-auto px-8 py-6 scroll-smooth", isFullscreen && "px-12 py-8")}>
+        {editing && !isFullscreen ? (
           <textarea
             className="w-full h-full min-h-[60vh] bg-transparent outline-none resize-none text-sm leading-7 text-foreground placeholder:text-muted-foreground/50"
             style={{ fontFamily: "'Source Code Pro', monospace" }}
@@ -111,17 +181,7 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
             autoFocus
           />
         ) : song.content ? (
-          <pre className="whitespace-pre-wrap text-sm leading-7" style={{ fontFamily: "'Source Code Pro', monospace" }}>
-            {lines.map((line, i) => (
-              <span
-                key={i}
-                className={isChordLine(line) ? 'text-primary font-bold' : 'text-foreground/70'}
-              >
-                {line}
-                {i < lines.length - 1 && '\n'}
-              </span>
-            ))}
-          </pre>
+          renderedContent
         ) : (
           <p className="text-muted-foreground italic text-sm">Click "Edit" to paste your lyrics and chords.</p>
         )}
@@ -130,7 +190,6 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
       {/* Auto-scroll controls */}
       {!editing && song.content && (
         <div className="absolute bottom-6 right-6 flex flex-col items-center gap-3">
-          {/* Speed slider — visible when scrolling */}
           {scrolling && (
             <div className="bg-card/90 backdrop-blur-sm border border-border rounded-xl p-3 shadow-lg flex flex-col items-center gap-2 w-14">
               <span className="text-[10px] font-medium text-muted-foreground">{scrollSpeed}</span>
