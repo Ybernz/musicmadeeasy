@@ -105,6 +105,13 @@ const Index = () => {
           </div>
         )}
       </main>
+
+      <ChordSearchDialog
+        open={chordSearchOpen}
+        onOpenChange={setChordSearchOpen}
+        folders={book.folders}
+        onSave={handleSaveChordSearch}
+      />
     </div>
   );
 };
