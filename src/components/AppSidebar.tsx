@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronRight, MoreHorizontal, Music, Sun, Moon, LogOut } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Music, Sun, Moon, LogOut, Search } from 'lucide-react';
 import { Folder, Song } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
