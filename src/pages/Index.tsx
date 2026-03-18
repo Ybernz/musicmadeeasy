@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useChordBook } from '@/hooks/useChordBook';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SongViewer } from '@/components/SongViewer';
+import { ChordSearchDialog } from '@/components/ChordSearchDialog';
 import { useState } from 'react';
 import { Menu, X, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
