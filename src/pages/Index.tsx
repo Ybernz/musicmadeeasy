@@ -57,6 +57,7 @@ const Index = () => {
           onSelectSong={(id) => { book.selectSong(id); setSidebarOpen(false); }}
           onToggleFolder={book.toggleFolder}
           onSignOut={signOut}
+          onFindChords={() => setChordSearchOpen(true)}
         />
       </div>
 
