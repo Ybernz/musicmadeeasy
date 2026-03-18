@@ -1,1 +1,4 @@
 project_id = "vdtapzboqekbybutulij"
+
+[functions.search-chords]
+verify_jwt = false

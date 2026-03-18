@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronRight, MoreHorizontal, Music, Sun, Moon, LogOut } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Music, Sun, Moon, LogOut, Search } from 'lucide-react';
 import { Folder, Song } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -29,6 +29,7 @@ interface SidebarProps {
   onSelectSong: (id: string | null) => void;
   onToggleFolder: (id: string) => void;
   onSignOut: () => void;
+  onFindChords: () => void;
 }
 
 function InlineRename({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
@@ -189,12 +190,20 @@ export function AppSidebar(props: SidebarProps) {
             onCancel={() => setCreatingFolder(false)}
           />
         ) : (
-          <button
-            onClick={() => setCreatingFolder(true)}
-            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            + New Folder
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCreatingFolder(true)}
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              + New Folder
+            </button>
+            <button
+              onClick={props.onFindChords}
+              className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              <Search className="h-3.5 w-3.5" /> Find Chords
+            </button>
+          </div>
         )}
         <button
           onClick={props.onSignOut}

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useChordBook } from '@/hooks/useChordBook';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SongViewer } from '@/components/SongViewer';
+import { ChordSearchDialog } from '@/components/ChordSearchDialog';
 import { useState } from 'react';
 import { Menu, X, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,15 @@ const Index = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   const book = useChordBook();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [chordSearchOpen, setChordSearchOpen] = useState(false);
+
+  const handleSaveChordSearch = async (folderId: string, title: string, content: string) => {
+    const song = await book.createSong(folderId);
+    if (song) {
+      await book.renameSong(song.id, title);
+      await book.updateSongContent(song.id, content);
+    }
+  };
 
   if (authLoading) return <div className="flex items-center justify-center h-screen bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
@@ -47,6 +57,7 @@ const Index = () => {
           onSelectSong={(id) => { book.selectSong(id); setSidebarOpen(false); }}
           onToggleFolder={book.toggleFolder}
           onSignOut={signOut}
+          onFindChords={() => setChordSearchOpen(true)}
         />
       </div>
 
@@ -94,6 +105,13 @@ const Index = () => {
           </div>
         )}
       </main>
+
+      <ChordSearchDialog
+        open={chordSearchOpen}
+        onOpenChange={setChordSearchOpen}
+        folders={book.folders}
+        onSave={handleSaveChordSearch}
+      />
     </div>
   );
 };
