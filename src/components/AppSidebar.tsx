@@ -29,6 +29,7 @@ interface SidebarProps {
   onSelectSong: (id: string | null) => void;
   onToggleFolder: (id: string) => void;
   onSignOut: () => void;
+  onFindChords: () => void;
 }
 
 function InlineRename({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
