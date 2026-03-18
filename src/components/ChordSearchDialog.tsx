@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, Save, X } from 'lucide-react';
+import { Search, Loader2, Save, X, ArrowLeft, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Folder } from '@/lib/types';
+
+interface SearchResult {
+  title: string;
+  url: string;
+  description: string;
+  source: string;
+}
 
 interface ChordSearchDialogProps {
   open: boolean;
@@ -18,80 +25,147 @@ interface ChordSearchDialogProps {
 
 export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: ChordSearchDialogProps) {
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ title: string; content: string } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [content, setContent] = useState<{ title: string; content: string } | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string>(folders[0]?.id || '');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
-    setLoading(true);
-    setResult(null);
+    setSearching(true);
+    setResults([]);
+    setContent(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('search-chords', {
-        body: { query: query.trim() },
+        body: { action: 'search', query: query.trim() },
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
-      setResult({ title: data.title, content: data.content });
+      setResults(data.results || []);
+      if ((data.results || []).length === 0) {
+        toast.info('No results found. Try a different search.');
+      }
     } catch (e: any) {
-      toast.error(e.message || 'Failed to find chords');
+      toast.error(e.message || 'Search failed');
     } finally {
-      setLoading(false);
+      setSearching(false);
+    }
+  };
+
+  const handleFetch = async (result: SearchResult) => {
+    setFetching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('search-chords', {
+        body: { action: 'fetch', url: result.url },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setContent({ title: result.title, content: data.content });
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to fetch chords');
+    } finally {
+      setFetching(false);
     }
   };
 
   const handleSave = async () => {
-    if (!result || !selectedFolderId) return;
+    if (!content || !selectedFolderId) return;
     try {
-      await onSave(selectedFolderId, result.title, result.content);
+      await onSave(selectedFolderId, content.title, content.content);
       toast.success('Song saved!');
-      setResult(null);
-      setQuery('');
+      resetState();
       onOpenChange(false);
     } catch {
       toast.error('Failed to save song');
     }
   };
 
+  const resetState = () => {
+    setResults([]);
+    setContent(null);
+    setQuery('');
+  };
+
+  const goBack = () => {
+    setContent(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetState(); onOpenChange(v); }}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
+            {content && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
             <Search className="h-5 w-5 text-primary" />
-            Find Chords
+            {content ? 'Chord Preview' : 'Find Chords'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex gap-2">
-          <Input
-            placeholder="Song name — e.g. Wonderwall by Oasis"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            disabled={loading}
-            className="flex-1"
-          />
-          <Button onClick={handleSearch} disabled={loading || !query.trim()}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
-
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm">Generating chord sheet…</p>
+        {/* Search bar — always visible when no content preview */}
+        {!content && (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Song name — e.g. Wonderwall by Oasis"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              disabled={searching || fetching}
+              className="flex-1"
+            />
+            <Button onClick={handleSearch} disabled={searching || !query.trim()}>
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
           </div>
         )}
 
-        {result && (
+        {/* Loading states */}
+        {(searching || fetching) && (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm">{searching ? 'Searching chord sites…' : 'Fetching & formatting chords…'}</p>
+          </div>
+        )}
+
+        {/* Results list */}
+        {!searching && !fetching && !content && results.length > 0 && (
+          <ScrollArea className="flex-1 min-h-0 max-h-[55vh]">
+            <div className="space-y-1 pr-3">
+              {results.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleFetch(r)}
+                  className="w-full text-left p-3 rounded-lg hover:bg-accent/50 transition-colors border border-transparent hover:border-border group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm text-foreground truncate">{r.title}</p>
+                      {r.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{r.description}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
+                      {r.source}
+                    </span>
+                  </div>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+
+        {/* Chord preview */}
+        {content && !fetching && (
           <>
             <ScrollArea className="flex-1 min-h-0 max-h-[50vh] border rounded-lg p-4 bg-muted/30">
               <pre className="text-sm font-mono whitespace-pre-wrap text-foreground leading-relaxed">
-                {result.content}
+                {content.content}
               </pre>
             </ScrollArea>
 
@@ -109,7 +183,7 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
               <Button onClick={handleSave} className="gap-1.5">
                 <Save className="h-4 w-4" /> Save to Folder
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => setResult(null)} title="Discard">
+              <Button variant="ghost" size="icon" onClick={goBack} title="Discard">
                 <X className="h-4 w-4" />
               </Button>
             </div>
