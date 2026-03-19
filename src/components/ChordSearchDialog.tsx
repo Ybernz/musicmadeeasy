@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Loader2, Save, X, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Search, Loader2, Save, X, ArrowLeft, ExternalLink, FolderPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,15 +21,18 @@ interface ChordSearchDialogProps {
   onOpenChange: (open: boolean) => void;
   folders: Folder[];
   onSave: (folderId: string, title: string, content: string) => Promise<void>;
+  onCreateFolder: (name: string) => Promise<any>;
 }
 
-export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: ChordSearchDialogProps) {
+export function ChordSearchDialog({ open, onOpenChange, folders, onSave, onCreateFolder }: ChordSearchDialogProps) {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [content, setContent] = useState<{ title: string; content: string } | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string>(folders[0]?.id || '');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -82,10 +85,27 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
     }
   };
 
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    try {
+      const folder = await onCreateFolder(name);
+      if (folder) {
+        setSelectedFolderId(folder.id);
+      }
+      setCreatingFolder(false);
+      setNewFolderName('');
+    } catch {
+      toast.error('Failed to create folder');
+    }
+  };
+
   const resetState = () => {
     setResults([]);
     setContent(null);
     setQuery('');
+    setCreatingFolder(false);
+    setNewFolderName('');
   };
 
   const goBack = () => {
@@ -107,7 +127,6 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search bar — always visible when no content preview */}
         {!content && (
           <div className="flex gap-2">
             <Input
@@ -124,7 +143,6 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
           </div>
         )}
 
-        {/* Loading states */}
         {(searching || fetching) && (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -132,7 +150,6 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
           </div>
         )}
 
-        {/* Results list */}
         {!searching && !fetching && !content && results.length > 0 && (
           <ScrollArea className="flex-1 min-h-0 max-h-[55vh]">
             <div className="space-y-1 pr-3">
@@ -160,7 +177,6 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
           </ScrollArea>
         )}
 
-        {/* Chord preview */}
         {content && !fetching && (
           <>
             <ScrollArea className="flex-1 min-h-0 max-h-[50vh] border rounded-lg p-4 bg-muted/30">
@@ -169,18 +185,45 @@ export function ChordSearchDialog({ open, onOpenChange, folders, onSave }: Chord
               </pre>
             </ScrollArea>
 
-            <div className="flex items-center gap-2 pt-2">
-              <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select folder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {folders.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleSave} className="gap-1.5">
+            <div className="flex items-center gap-2 pt-2 flex-wrap">
+              {creatingFolder ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    autoFocus
+                    placeholder="Folder name"
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleCreateFolder();
+                      if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); }
+                    }}
+                    className="w-36 h-9"
+                  />
+                  <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()} className="h-9">
+                    Create
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setCreatingFolder(false); setNewFolderName(''); }} className="h-9">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Select folder" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folders.map(f => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" onClick={() => setCreatingFolder(true)} className="h-9 gap-1 px-2" title="New folder">
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <Button onClick={handleSave} className="gap-1.5" disabled={!selectedFolderId}>
                 <Save className="h-4 w-4" /> Save to Folder
               </Button>
               <Button variant="ghost" size="icon" onClick={goBack} title="Discard">

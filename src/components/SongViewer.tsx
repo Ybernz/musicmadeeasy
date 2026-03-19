@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Song } from '@/lib/types';
-import { isChordLine } from '@/lib/chords';
+import { isChordLine, transposeLine } from '@/lib/chords';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
-import { ChevronDown, Pencil, Save, Maximize, Minimize, Columns } from 'lucide-react';
+import { ChevronDown, Pencil, Save, Maximize, Minimize, Columns, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface SongViewerProps {
   song: Song;
@@ -25,16 +26,21 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [columnCount, setColumnCount] = useState(2);
   const fullscreenRef = useRef<HTMLDivElement>(null);
+  const [transpose, setTranspose] = useState(0);
+  const [capo, setCapo] = useState(0);
 
   useEffect(() => { speedRef.current = scrollSpeed; }, [scrollSpeed]);
 
+  // Fix: depend on song.content so updates after creation are picked up
   useEffect(() => {
     setEditText(song.content);
     setEditing(!song.content);
     setScrolling(false);
     setTitleText(song.title);
     setEditingTitle(false);
-  }, [song.id]);
+    setTranspose(0);
+    setCapo(0);
+  }, [song.id, song.content]);
 
   // Auto-scroll
   useEffect(() => {
@@ -79,6 +85,7 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
     setEditing(false);
   }, [song.id, editText, onUpdateContent]);
 
+  const totalSemitones = transpose + capo;
   const lines = song.content.split('\n');
 
   const renderedContent = (
@@ -93,22 +100,25 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
         columnRule: isFullscreen ? '1px solid hsl(var(--border))' : undefined,
       }}
     >
-      {lines.map((line, i) => (
-        <span
-          key={i}
-          className={isChordLine(line) ? 'text-primary font-bold' : 'text-foreground/70'}
-        >
-          {line}
-          {i < lines.length - 1 && '\n'}
-        </span>
-      ))}
+      {lines.map((line, i) => {
+        const displayLine = totalSemitones !== 0 ? transposeLine(line, totalSemitones) : line;
+        return (
+          <span
+            key={i}
+            className={isChordLine(line) ? 'text-primary font-bold' : 'text-foreground/70'}
+          >
+            {displayLine}
+            {i < lines.length - 1 && '\n'}
+          </span>
+        );
+      })}
     </pre>
   );
 
   return (
     <div ref={fullscreenRef} className={cn("flex flex-col h-full relative", isFullscreen && "bg-background")}>
       {/* Title bar */}
-      <div className="px-8 py-4 border-b border-border bg-card/50 backdrop-blur-sm flex items-center gap-3">
+      <div className="px-8 py-4 border-b border-border bg-card/50 backdrop-blur-sm flex items-center gap-3 flex-wrap">
         {editingTitle && !isFullscreen ? (
           <input
             autoFocus
@@ -130,7 +140,48 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
           </h2>
         )}
 
-        <div className="ml-auto flex gap-2 items-center">
+        <div className="ml-auto flex gap-2 items-center flex-wrap">
+          {/* Transpose controls */}
+          {!editing && song.content && (
+            <div className="flex items-center gap-1 mr-1">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 rounded-full"
+                onClick={() => setTranspose(t => t - 1)}
+                title="Transpose down"
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="text-xs font-medium text-muted-foreground min-w-[3rem] text-center">
+                {transpose >= 0 ? `+${transpose}` : transpose}
+              </span>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-7 w-7 rounded-full"
+                onClick={() => setTranspose(t => t + 1)}
+                title="Transpose up"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+
+              <div className="ml-2 flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Capo</span>
+                <Select value={String(capo)} onValueChange={v => setCapo(Number(v))}>
+                  <SelectTrigger className="h-7 w-14 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 13 }, (_, i) => (
+                      <SelectItem key={i} value={String(i)}>{i}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           {/* Column slider in fullscreen */}
           {isFullscreen && (
             <div className="flex items-center gap-2 mr-2">
