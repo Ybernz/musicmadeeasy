@@ -111,6 +111,7 @@ const Index = () => {
         onOpenChange={setChordSearchOpen}
         folders={book.folders}
         onSave={handleSaveChordSearch}
+        onCreateFolder={book.createFolder}
       />
     </div>
   );
