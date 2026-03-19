@@ -31,7 +31,12 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
 
   useEffect(() => { speedRef.current = scrollSpeed; }, [scrollSpeed]);
 
-  // Fix: depend on song.content so updates after creation are picked up
+  // Auto-detect capo from content
+  const detectCapo = useCallback((text: string): number => {
+    const match = text.match(/^Capo[:\s]+(\d+)/im);
+    return match ? parseInt(match[1], 10) : 0;
+  }, []);
+
   useEffect(() => {
     setEditText(song.content);
     setEditing(!song.content);
@@ -39,8 +44,8 @@ export function SongViewer({ song, onUpdateContent, onRenameSong }: SongViewerPr
     setTitleText(song.title);
     setEditingTitle(false);
     setTranspose(0);
-    setCapo(0);
-  }, [song.id, song.content]);
+    setCapo(detectCapo(song.content));
+  }, [song.id, song.content, detectCapo]);
 
   // Auto-scroll
   useEffect(() => {

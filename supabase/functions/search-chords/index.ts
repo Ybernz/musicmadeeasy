@@ -132,6 +132,7 @@ serve(async (req) => {
               role: "system",
               content: `You are a chord sheet formatter. Given raw scraped content from a chord website, extract and output ONLY the clean chord sheet with:
 - Song title and artist on the first line
+- If the song uses a capo, include "Capo: X" on the second line (where X is the fret number). This is very important — look for capo information in the original content and always include it if present.
 - Section labels like [Intro], [Verse 1], [Chorus], [Bridge], [Outro]
 - Chord names on their own line above the lyric line they apply to
 - Proper alignment of chords to syllables
