@@ -110,6 +110,7 @@ const Index = () => {
         open={chordSearchOpen}
         onOpenChange={setChordSearchOpen}
         folders={book.folders}
+        songs={book.songs}
         onSave={handleSaveChordSearch}
         onCreateFolder={book.createFolder}
       />
