@@ -166,7 +166,119 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: "Invalid action. Use 'search' or 'fetch'." }), {
+    // ── ACTION: recommend ──
+    if (action === "recommend") {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        return new Response(JSON.stringify({ error: "AI is not configured" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const songList = (existingSongs || []).slice(0, 50);
+      const diffLabel = difficulty === "easier" ? "easier (fewer/simpler chords)" : difficulty === "harder" ? "harder (more complex chords, jazz voicings, barre chords)" : "similar difficulty";
+      
+      let tastePrompt = "";
+      if (taste === "similar") {
+        tastePrompt = "Recommend songs with a similar musical style and genre to the user's library.";
+      } else if (taste === "random") {
+        tastePrompt = "Recommend songs from a wide variety of genres and styles the user might not expect.";
+      } else if (taste === "genre" && genre) {
+        tastePrompt = `Recommend songs specifically from the ${genre} genre.`;
+      }
+
+      const userSongsContext = songList.length > 0
+        ? `The user currently has these songs in their library:\n${songList.map((s: string) => `- ${s}`).join("\n")}\n\nDo NOT recommend songs they already have.`
+        : "The user has no songs yet. Recommend popular beginner-friendly songs.";
+
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: "You are a music recommendation expert who specializes in guitar and chord-based music. You recommend songs that are fun to play on guitar/ukulele.",
+            },
+            {
+              role: "user",
+              content: `${userSongsContext}\n\nRecommend 8 songs that are ${diffLabel} compared to their current repertoire.\n${tastePrompt}\n\nFor each song provide the title, artist, and a brief reason why it's a good pick (mention chord complexity or style).`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "return_recommendations",
+                description: "Return a list of song recommendations",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    recommendations: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          artist: { type: "string" },
+                          reason: { type: "string" },
+                        },
+                        required: ["title", "artist", "reason"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["recommendations"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "return_recommendations" } },
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const status = aiResponse.status;
+        if (status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        console.error("AI recommend error:", status);
+        return new Response(JSON.stringify({ error: "Failed to get recommendations" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const aiData = await aiResponse.json();
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      let recommendations: any[] = [];
+      if (toolCall?.function?.arguments) {
+        try {
+          const parsed = JSON.parse(toolCall.function.arguments);
+          recommendations = parsed.recommendations || [];
+        } catch {
+          console.error("Failed to parse AI recommendations");
+        }
+      }
+
+      return new Response(JSON.stringify({ recommendations }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Invalid action. Use 'search', 'fetch', or 'recommend'." }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
