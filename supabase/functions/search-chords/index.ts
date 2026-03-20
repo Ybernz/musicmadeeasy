@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, query, url } = await req.json();
+    const { action, query, url, difficulty, taste, genre, existingSongs } = await req.json();
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) {
